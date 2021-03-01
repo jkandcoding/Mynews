@@ -5,6 +5,8 @@ import androidx.room.TypeConverter;
 import com.google.gson.Gson;
 import com.klemar.android.factorytask.model.SourceModel;
 
+import org.threeten.bp.OffsetDateTime;
+
 import java.sql.Date;
 
 public class Converters {
@@ -20,13 +22,13 @@ public class Converters {
     }
 
     @TypeConverter
-    public static Date fromTimestamp(Long value) {
-        return value == null ? null : new Date(value);
+    public static OffsetDateTime fromStringToOffsetDateTime(String value) {
+        return value == null ? null : OffsetDateTime.parse(value);
     }
 
     @TypeConverter
-    public static Long dateToTimestamp(Date date) {
-        return date == null ? null : date.getTime();
+    public static String fromOffsetDateTimeToString(OffsetDateTime date) {
+        return date == null ? null : date.toString();
     }
 
 }

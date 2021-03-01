@@ -1,9 +1,6 @@
 package com.klemar.android.factorytask.model;
 
-import androidx.room.Entity;
-
 import com.google.gson.annotations.SerializedName;
-import com.klemar.android.factorytask.model.NewsModel;
 
 import java.util.List;
 
@@ -13,14 +10,18 @@ public class NewsListResponse {
     @SerializedName("status")
     private String status;
 
+    @SerializedName("source")
+    private String source;
+
     @SerializedName("totalResults")
     private int totalResults;
 
     @SerializedName("articles")
-    private List<NewsModel> articles = null;
+    private List<NewsModel> articles;
 
-    public NewsListResponse(String status, int totalResults, List<NewsModel> articles) {
+    public NewsListResponse(String status, String source, int totalResults, List<NewsModel> articles) {
         this.status = status;
+        this.source = source;
         this.totalResults = totalResults;
         this.articles = articles;
     }
@@ -31,6 +32,14 @@ public class NewsListResponse {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
     }
 
     public int getTotalResults() {

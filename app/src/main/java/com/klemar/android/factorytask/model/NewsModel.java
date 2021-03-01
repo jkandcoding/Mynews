@@ -1,22 +1,24 @@
 package com.klemar.android.factorytask.model;
 
+import androidx.annotation.NonNull;
 import androidx.room.Entity;
+import androidx.room.Ignore;
+import androidx.room.Index;
 import androidx.room.PrimaryKey;
 
 import com.google.gson.annotations.SerializedName;
 
-import java.sql.Date;
+import org.threeten.bp.OffsetDateTime;
+import org.threeten.bp.ZoneOffset;
 
-@Entity(tableName = "newstable")                //todo remove
+
+@Entity(tableName = "newstable", indices = {
+        @Index(value = {"urlToImage", "title"}),
+        @Index(value = {"urlToImage", "title", "content"}, unique = true)
+})
 public class NewsModel {
 
-    @PrimaryKey(autoGenerate = true)
-    private int id;
-    //todo remove
-    private Date timeStamp;                       //todo remove
-
-    @SerializedName("source")
-    private SourceModel source;
+    private OffsetDateTime timeStamp;
     @SerializedName("author")
     private String author;
     @SerializedName("title")
@@ -28,17 +30,14 @@ public class NewsModel {
     @SerializedName("urlToImage")
     private String urlToImage;
     @SerializedName("publishedAt")
+    @PrimaryKey
+    @NonNull
     private String publishedAt;
     @SerializedName("content")
     private String content;
 
-    public NewsModel() {
-
-    }
-
-    public NewsModel(SourceModel source, String author, String title, String description, String url, String urlToImage, String publishedAt, String content) {
-        this.timeStamp = new Date(System.currentTimeMillis());             //todo remove
-        this.source = source;
+    public NewsModel(String author, String title, String description, String url, String urlToImage, String publishedAt, String content) {
+        this.timeStamp = OffsetDateTime.now().withOffsetSameInstant(ZoneOffset.UTC);
         this.author = author;
         this.title = title;
         this.description = description;
@@ -48,28 +47,19 @@ public class NewsModel {
         this.content = content;
     }
 
-    public int getId() {
-        return id;
+    @Ignore
+    public NewsModel(String title, String description, String urlToImage) {
+        this.title = title;
+        this.description = description;
+        this.urlToImage = urlToImage;
     }
 
-    public void setId(int id) {
-        this.id = id;
-    }
-
-    public Date getTimeStamp() {
+    public OffsetDateTime getTimeStamp() {
         return timeStamp;
     }
 
-    public void setTimeStamp(Date timeStamp) {
+    public void setTimeStamp(OffsetDateTime timeStamp) {
         this.timeStamp = timeStamp;
-    }
-
-    public SourceModel getSource() {
-        return source;
-    }
-
-    public void setSource(SourceModel source) {
-        this.source = source;
     }
 
     public String getAuthor() {
@@ -126,5 +116,18 @@ public class NewsModel {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    @Override
+    public String toString() {
+        return "NewsModel{" +
+                "timeStamp=" + timeStamp +
+                ", author='" + author + '\'' +
+                ", title='" + title + '\'' +
+                ", description='" + description + '\'' +
+                ", url='" + url + '\'' +
+                ", urlToImage='" + urlToImage + '\'' +
+                ", publishedAt='" + publishedAt + '\'' +
+                '}';
     }
 }

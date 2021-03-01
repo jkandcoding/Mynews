@@ -1,41 +1,46 @@
 package com.klemar.android.factorytask.viewModels;
 
-
 import android.app.Application;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
 
 import com.klemar.android.factorytask.model.NewsModel;
 import com.klemar.android.factorytask.network.NewsListRepository;
 
 import java.util.List;
 
-public class NewsListViewModel extends AndroidViewModel {
+public class NewsDetailsViewModel extends AndroidViewModel {
 
     private final NewsListRepository newsListRepository;
 
+    private final MutableLiveData<Boolean> firstClickOnNewsList = new MutableLiveData<>();
 
-
-    public NewsListViewModel(@NonNull Application application) {
+    public NewsDetailsViewModel(@NonNull Application application) {
         super(application);
         newsListRepository = new NewsListRepository(application);
+        firstClickOnNewsList.setValue(true);
     }
 
-    // get articles from database
-    public LiveData<List<NewsModel>> getNewsList() {
+    //get current list from db
+    public LiveData<List<NewsModel>> getNewsDetails() {
         return newsListRepository.getArticlesFromDb();
     }
 
-    // fetch new articles from network if needed
-    public void refreshNews() {
-        newsListRepository.refreshDatabase();
+    //get more (older) news
+    public void getOlderNewsDetails() {
+        newsListRepository.getOlderArticles();
     }
 
-    // fetch more (older) articles from network
-    public void getNewsListOld() {
-        newsListRepository.getOlderArticles();
+    public MutableLiveData<Boolean> getFirstClickOnNewsList() {
+        return firstClickOnNewsList;
+    }
+
+    public void setFirstClickOnNewsList(boolean firstClickOnNewsList) {
+        this.firstClickOnNewsList.setValue(firstClickOnNewsList);
     }
 
     // notified if smth went wrong
@@ -46,5 +51,4 @@ public class NewsListViewModel extends AndroidViewModel {
     public void setErrorOccurred(boolean errorOccurred) {
         newsListRepository.setErrorOccurred(errorOccurred);
     }
-
 }

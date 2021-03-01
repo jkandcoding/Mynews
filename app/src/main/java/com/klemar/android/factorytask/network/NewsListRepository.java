@@ -1,7 +1,7 @@
 package com.klemar.android.factorytask.network;
 
 import android.app.Application;
-import android.content.Context;
+import android.os.SystemClock;
 import android.util.Log;
 
 import androidx.lifecycle.LiveData;
@@ -13,9 +13,12 @@ import com.klemar.android.factorytask.model.NewsListResponse;
 import com.klemar.android.factorytask.model.NewsModel;
 import com.klemar.android.factorytask.utils.AppExecutors;
 
-import java.sql.Date;
+import org.threeten.bp.Duration;
+import org.threeten.bp.OffsetDateTime;
+import org.threeten.bp.ZoneOffset;
+
 import java.util.List;
-import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -26,101 +29,147 @@ import static com.klemar.android.factorytask.network.ApiClient.API_KEY;
 
 public class NewsListRepository {
 
-   private final static String SOURCE = "bbc-news";
-   private static NewsListRepository newsListRepository;
-
-    private LiveData<List<NewsModel>> articlesFromDb;
-    private MutableLiveData<NewsListResponse> articlesFromNetwork = new MutableLiveData<>();
-    private LiveData<Date> lastTimestamp;
-    private String lastTitle;
-    private NewsDao newsDao;
-
-//    public static NewsListRepository getInstance() {
-//        if (newsListRepository == null) {
-//            newsListRepository = new NewsListRepository();
-//        }
-//        return newsListRepository;
-//    }
+    private final static String SOURCE = "bbc-news";
+    private LiveData<List<NewsModel>> articlesFromDb = null;
+    private NewsListResponse articlesFromNetwork;
+    private String oldestPublishedAtForQuery;
+    private OffsetDateTime lastTimestamp;
+    private final NewsDao newsDao;
+    private final MutableLiveData<Boolean> errorOccurred = new MutableLiveData<>();
 
     public NewsListRepository(Application application) {
         NewsDatabase db = NewsDatabase.getInstance(application);
         newsDao = db.newsDao();
-        articlesFromDb = newsDao.loadNewsFromDB();
-        lastTimestamp = newsDao.lastTimeStamp();
-        lastTitle = newsDao.lastTitle();
+        AppExecutors.getInstance().diskIO().execute(() -> articlesFromDb = newsDao.loadNewsFromDB());
     }
 
-    //dohvaca podatke iz room db
+    // get data only from room db
     public LiveData<List<NewsModel>> getArticlesFromDb() {
-        if (lastTimestamp.equals("")) {
-            insertArticlesIntoDb(articlesFromNetwork.getValue().getArticles());
-        }
+        //without "sleep" returned list is empty
+        SystemClock.sleep(100);
         return articlesFromDb;
     }
 
-    //dohvaca zadnji timestamp iz room db
-    public LiveData<Date> getLastTimestamp() {
-        return lastTimestamp;
+    // if db is empty or db data are older than 5 min, fetch new data from network
+    // and insert in db
+    public void refreshDatabase() {
+        CountDownLatch cDl = new CountDownLatch(1);
+        AppExecutors.getInstance().diskIO().execute(() -> {
+            lastTimestamp = newsDao.getlastTimeStamp();
+            cDl.countDown();
+        });
+
+        OffsetDateTime nowTime = OffsetDateTime.now().withOffsetSameInstant(ZoneOffset.UTC);
+
+        try {
+            cDl.await();
+            if (lastTimestamp == null || Duration.between(lastTimestamp, nowTime).toMinutes() > 4) {
+                getArticlesFromNetwork();
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
-    public String getLastTitle() {
-        return lastTitle;
+    // fetch new data from network and insert in db
+    public void getArticlesFromNetwork() {
+        ApiInterface apiService =
+                ApiClient.getClient().create(ApiInterface.class);
+
+        //Execute the Network request
+        Call<NewsListResponse> call = apiService.getNews(SOURCE, API_KEY);
+
+        //Execute the request in a background thread
+        call.enqueue(new Callback<NewsListResponse>() {
+
+            @Override
+            public void onResponse(Call<NewsListResponse> call, Response<NewsListResponse> response) {
+                if (response.body() != null && response.body().getStatus().equals("ok")) {
+                    //Get the values
+                    articlesFromNetwork = response.body();
+
+                    // delete * from database and insert new 20 articles
+                    AppExecutors.getInstance().diskIO().execute(newsDao::deleteAllNews);
+                    insertArticlesIntoDb(articlesFromNetwork);
+                } else {
+
+                    //e.g. more requests than api permits
+                    errorOccurred.setValue(true);
+                }
+            }
+
+            @Override
+            public void onFailure(Call<NewsListResponse> call, Throwable t) {
+                // Log error here since request failed
+                errorOccurred.setValue(true);
+            }
+        });
     }
 
-    //dohvaca podatke s networka
-    public MutableLiveData<NewsListResponse> getArticlesFromNetwork() {
+    // when user scrolls to end of the list, this method gets 20 more articles from network
+    public void getOlderArticles() {
+        CountDownLatch cdl = new CountDownLatch(1);
+        AppExecutors.getInstance().diskIO().execute(() -> {
+            oldestPublishedAtForQuery = newsDao.getOldestPublishedAt().toString();
+            cdl.countDown();
+        });
 
         ApiInterface apiService =
                 ApiClient.getClient().create(ApiInterface.class);
 
-        Call<NewsListResponse> call = apiService.getNews(SOURCE, API_KEY);
+        Call<NewsListResponse> call = null;
+        try {
+            cdl.await();
+            call = apiService.getOlderNews(SOURCE, oldestPublishedAtForQuery, API_KEY);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
         call.enqueue(new Callback<NewsListResponse>() {
             @Override
             public void onResponse(Call<NewsListResponse> call, Response<NewsListResponse> response) {
                 if (response.body() != null && response.body().getStatus().equals("ok")) {
-                    articlesFromNetwork.setValue(response.body());
-
-//                    List<NewsModel> news = response.body().getArticles();
-//                    mDb.newsDao().insertNews(news);
-//                    long timest = mDb.newsDao().lastTimeStamp();
-//                    String title = mDb.newsDao().lastTitle();
-//                    Log.d("jkjkjkj", "zadnji unos: " + timest + "-" + title);
-                /*
-                timestamp = getLastArticleFromDb.getTimestamp();
-                //  insertNewDataToDb(articles.getTimestamp(> timestamp));    todo insert into room db - change type!!!!!
-                 */
-                //  insertNewDataToDb(articles.getValue().getArticles());
-                  //  Log.d("jkjkjkj", String.valueOf(articles.getValue().getArticles()));
+                    //Get the values
+                    articlesFromNetwork = response.body();
+                    insertArticlesIntoDb(articlesFromNetwork);
+                } else {
+                    //e.g. more requests than api permits
+                    errorOccurred.setValue(true);
                 }
             }
 
-//            private void insertNewDataToDb(List<NewsModel> articlesForDb) {
-////                Log.d("jkjkjkj", "prije spremanja ");
-////                for (NewsModel article : articles) {
-////                    final NewsModel newsModel = new NewsModel(article.getSource(), article.getAuthor(), article.getTitle(),
-////                            article.getDescription(), article.getUrl(), article.getUrlToImage(), article.getPublishedAt(), article.getContent());
-////                  //  mDb.newsDao().insertNews();
-////                }
-// //               mDb.newsDao().insertNews(articles);
-//                long lastTimestamp = mDb.newsDao().lastTimeStamp();
-//                Log.d("jkjkjkj", String.valueOf(lastTimestamp));
-//
-//            }
-
             @Override
             public void onFailure(Call<NewsListResponse> call, Throwable t) {
-                // Log error here since request failed
-                //todo insert pop up alert dialog
-                Log.e("hjhjh", t.toString());
+                errorOccurred.setValue(true);
             }
         });
-        return articlesFromNetwork;
     }
 
-    //inserta podatke iz networka u bazu
-    public void insertArticlesIntoDb(List<NewsModel> newsForDb) {
-        AppExecutors.getInstance().diskIO().execute(() -> newsDao.insertNews(newsForDb));
+    // insert new data to database
+    public void insertArticlesIntoDb(NewsListResponse newsForDb) {
+        List<NewsModel> newArticles = newsForDb.getArticles();
 
+        for (int i = 0; i < newArticles.size(); i++) {
+            String author = newArticles.get(i).getAuthor();
+            String title = newArticles.get(i).getTitle();
+            String description = newArticles.get(i).getDescription();
+            String url = newArticles.get(i).getUrl();
+            String urlToImg = newArticles.get(i).getUrlToImage();
+            String publishedAt = newArticles.get(i).getPublishedAt();
+            String content = newArticles.get(i).getContent();
+
+            NewsModel model = new NewsModel(author, title, description, url, urlToImg, publishedAt, content);
+            AppExecutors.getInstance().diskIO().execute(() -> newsDao.insertNews(model));
+        }
     }
+
+    public MutableLiveData<Boolean> getErrorOccurred() {
+        return errorOccurred;
+    }
+
+    public void setErrorOccurred(boolean errorOccurred) {
+        this.errorOccurred.setValue(errorOccurred);
+    }
+
+
 }

@@ -1,6 +1,5 @@
 package com.klemar.android.factorytask.model;
 
-import androidx.annotation.NonNull;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
@@ -33,6 +32,5 @@ public class SourceModel {
     public void setName(String name) {
         this.name = name;
     }
-
 
 }

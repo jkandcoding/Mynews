@@ -11,23 +11,29 @@ import androidx.room.Query;
 import com.klemar.android.factorytask.model.NewsListResponse;
 import com.klemar.android.factorytask.model.NewsModel;
 
+import org.threeten.bp.OffsetDateTime;
+
 import java.sql.Date;
 import java.util.List;
 
 @Dao
 public interface NewsDao {
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    void insertNews(List<NewsModel> newsModel);
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    void insertNews(NewsModel newsModel);
 
-    @Query("SELECT id, title, urlToImage, timestamp FROM newstable ORDER BY timestamp DESC")
+    @Query("DELETE FROM newstable")
+    void deleteAllNews();
+
+//    @Query("SELECT title, urlToImage, timestamp, publishedAt FROM newstable")
+    @Query("SELECT * FROM newstable ORDER BY datetime(publishedAt) DESC")
     LiveData<List<NewsModel>> loadNewsFromDB();
 
-    @Query("SELECT timeStamp FROM newstable ORDER BY id DESC LIMIT 1")
-    LiveData<Date> lastTimeStamp();
+    @Query("SELECT timeStamp FROM newstable ORDER BY datetime(publishedAt) DESC LIMIT 1")
+    OffsetDateTime getlastTimeStamp();
 
-    @Query("SELECT title FROM newstable ORDER BY id DESC LIMIT 1")
-    String lastTitle();
-
+     //the oldest article in database
+    @Query("SELECT publishedAt FROM newstable ORDER BY datetime(publishedAt) ASC LIMIT 1")
+    OffsetDateTime getOldestPublishedAt();
 
 }

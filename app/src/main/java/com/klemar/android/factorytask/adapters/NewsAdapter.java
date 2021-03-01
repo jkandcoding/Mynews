@@ -21,9 +21,11 @@ import java.util.List;
 public class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.MyViewHolder> {
 
     Context context;
-    private List<NewsModel> newsList;
+    private final List<NewsModel> newsList;
+    private View.OnClickListener mOnItemClickListener;
 
-    public NewsAdapter(Context context, ArrayList<NewsModel> newsList) {
+
+    public NewsAdapter(Context context, List<NewsModel> newsList) {
         this.context = context;
         this.newsList = newsList;
     }
@@ -40,46 +42,30 @@ public class NewsAdapter extends RecyclerView.Adapter<NewsAdapter.MyViewHolder> 
         NewsModel newsModel = newsList.get(position);
 
         holder.tv_newsListItem.setText(newsModel.getTitle());
-
-        //loading image using Picasso
         Picasso.get().load(newsModel.getUrlToImage()).into(holder.iv_newsListItem);
-
-        holder.itemView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                //todo newsListActivity.onNewsItemClick(position);
-            }
-        });
-
     }
 
     @Override
     public int getItemCount() {
-        Log.d("hjhjh", "getItemCount: " + newsList.size());
         return newsList.size();
-
     }
 
-    public void setNewsList(List<NewsModel> newsList) {
-        this.newsList = newsList;
-        if (newsList.size() == 0) {
-
-        }
-        notifyDataSetChanged();
+    //Assign itemClickListener to your local View.OnClickListener variable
+    public void setItemClickListener(View.OnClickListener clickListener) {
+        mOnItemClickListener = clickListener;
     }
 
     public class MyViewHolder extends RecyclerView.ViewHolder {
 
         public ImageView iv_newsListItem;
         public TextView tv_newsListItem;
-        // public ProgressBar pb_loadNewsItem;
 
         public MyViewHolder(@NonNull View itemView) {
             super(itemView);
-
             iv_newsListItem = itemView.findViewById(R.id.iv_news_list_item);
             tv_newsListItem = itemView.findViewById(R.id.tv_news_list_item);
-            //  pb_loadNewsItem = itemView.findViewById(R.id.pb_news_list_item);
+            itemView.setTag(this);
+            itemView.setOnClickListener(mOnItemClickListener);
         }
     }
 }
